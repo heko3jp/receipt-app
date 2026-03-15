@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>レシート読取アプリ</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>* { box-sizing: border-box; margin: 0; padding: 0; } body { background: #0a0a0f; color: #e8e4d9; font-family: 'Noto Serif JP', serif; }</style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const CATEGORIES = ['交通費', '接待・交際費', '消耗品費', '通信費', '外注費', 'その他'];
+    const fmt = (n) => n == null ? '—' : '¥' + Number(n).toLocaleString();
+    const s = { card: { background:'#111118', borderRadius:12, padding:20, border:'1px solid #1e1e2e', marginBottom:16 } };
+
+    async function analyzeImage(base64, mediaType, apiKey) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: `この画像は請求書または領収書です。JSON形式のみで返してください:\n{"type":"請求書 or 領収書","date":"YYYY-MM-DD","vendor":"取引先名","amount":数値,"tax":数値,"items":["品目1"],"category":"${CATEGORIES.join(' or ')}"}` }
+        ]}] })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e?.error?.message || 'APIエラー'); }
+      const data = await res.json();
+      try { return JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim()); } catch { return null; }
+    }
+
+    function App() {
+      const [apiKey, setApiKey] = React.useState(() => localStorage.getItem('anthropic_key') || '');
+      const [keySaved, setKeySaved] = React.useState(() => !!localStorage.getItem('anthropic_key'));
+      const [records, setRecords] = React.useState([]);
+      const [loading, setLoading] = React.useState(false);
+      const [preview, setPreview] = React.useState(null);
+      const [error, setError] = React.useState(null);
+      const [tab, setTab] = React.useState('upload');
+      const fileRef = React.useRef();
+
+      const saveKey = () => { localStorage.setItem('anthropic_key', apiKey); setKeySaved(true); };
+
+      const process = async (file) => {
+        if (!file || !file.type.startsWith('image/')) return;
+        setError(null); setLoading(true);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const dataUrl = e.target.result;
+          setPreview(dataUrl);
+          try {
+            const result = await analyzeImage(dataUrl.split(',')[1], file.type, apiKey);
+            if (result) { setRecords(p => [{ id: Date.now(), ...result, image: dataUrl }, ...p]); setTab('list'); }
+          } catch(err) { setError(err.message); }
+          finally { setLoading(false); setPreview(null); }
+        };
+        reader.readAsDataURL(file);
+      };
+
+      const totalAmount = records.reduce((s, r) => s + (r.amount || 0), 0);
+      const totalTax = records.reduce((s, r) => s + (r.tax || 0), 0);
+      const byCategory = CATEGORIES.map(cat => ({ cat, total: records.filter(r => r.category === cat).reduce((s, r) => s + (r.amount || 0), 0) })).filter(x => x.total > 0);
+      const maxCat = Math.max(...byCategory.map(x => x.total), 1);
+
+      const exportCSV = () => {
+        const rows = [['日付','取引先','種別','カテゴリ','税込金額','消費税'].join(','), ...records.map(r => [r.date,r.vendor,r.type,r.category,r.amount,r.tax].join(','))];
+        const blob = new Blob(['\uFEFF'+rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'receipts.csv'; a.click();
+      };
+
+      return (
+        <div style={{ minHeight:'100vh', background:'#0a0a0f', color:'#e8e4d9', fontFamily:"'Noto Serif JP',serif", display:'flex', flexDirection:'column', alignItems:'center', padding:'0 16px 80px' }}>
+          <div style={{ width:'100%', maxWidth:480, padding:'28px 0 12px', borderBottom:'1px solid #2a2a3a', marginBottom:20, display:'flex', alignItems:'flex-end', justifyContent:'space-between' }}>
+            <div><div style={{ fontSize:10, letterSpacing:4, color:'#555', textTransform:'uppercase', marginBottom:4 }}>経理自動化</div><div style={{ fontSize:24 }}>レシート読取</div></div>
+            <div style={{ textAlign:'right' }}><div style={{ fontSize:10, color:'#555', marginBottom:2 }}>合計</div><div style={{ fontSize:18, color:'#c8a96e' }}>{fmt(totalAmount)}</div></div>
+          </div>
+
+          {!keySaved && (
+            <div style={{ width:'100%', maxWidth:480, ...s.card, border:'1px solid #c8a96e' }}>
+              <div style={{ fontSize:12, color:'#c8a96e', marginBottom:10 }}>🔑 APIキーを入力してください</div>
+              <input value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-ant-api03-..." style={{ width:'100%', padding:'10px', background:'#0a0a0f', border:'1px solid #333', borderRadius:8, color:'#e8e4d9', fontSize:12, marginBottom:10 }} />
+              <button onClick={saveKey} disabled={!apiKey} style={{ background:'#c8a96e', color:'#0a0a0f', border:'none', borderRadius:8, padding:'10px 20px', cursor:'pointer', fontSize:13, fontWeight:'bold' }}>保存して開始</button>
+              <div style={{ fontSize:10, color:'#555', marginTop:8 }}>キーは取得先: console.anthropic.com</div>
+            </div>
+          )}
+
+          {keySaved && <>
+            <div style={{ width:'100%', maxWidth:480, display:'flex', borderBottom:'1px solid #2a2a3a', marginBottom:20 }}>
+              {[['upload','📸 アップロード'],['list',`📋 一覧(${records.length})`],['report','📊 レポート']].map(([k,l]) => (
+                <button key={k} onClick={() => setTab(k)} style={{ flex:1, padding:'10px 4px', border:'none', background:'none', color: tab===k ? '#c8a96e' : '#555', borderBottom: tab===k ? '2px solid #c8a96e' : '2px solid transparent', cursor:'pointer', fontSize:12 }}>{l}</button>
+              ))}
+            </div>
+            <div style={{ width:'100%', maxWidth:480 }}>
+              {tab === 'upload' && <>
+                {error && <div style={{ background:'#2a0a0a', border:'1px solid #a06060', borderRadius:10, padding:14, marginBottom:16, fontSize:12, color:'#e08080' }}>❌ {error}</div>}
+                <div onClick={() => !loading && fileRef.current.click()} style={{ border:'2px dashed #333', borderRadius:16, padding:'48px 24px', textAlign:'center', cursor: loading ? 'wait' : 'pointer', background:'#111118', marginBottom:20 }}>
+                  {loading ? <><div style={{ fontSize:32, marginBottom:8 }}>🤖</div><div style={{ color:'#c8a96e', fontSize:14 }}>AI読み取り中...</div></> : <><div style={{ fontSize:48, marginBottom:12 }}>📄</div><div style={{ fontSize:16, color:'#c8a96e', marginBottom:8 }}>タップして画像を選択</div><div style={{ fontSize:11, color:'#555' }}>請求書・領収書 JPG/PNG対応</div></>}
+                  <input ref={fileRef} type="file" accept="image/*" onChange={e => { process(e.target.files[0]); e.target.value=''; }} style={{ display:'none' }} />
+                </div>
+              </>}
+              {tab === 'list' && <>
+                {records.length > 0 && <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}><button onClick={exportCSV} style={{ background:'#c8a96e', color:'#0a0a0f', border:'none', borderRadius:8, padding:'9px 18px', cursor:'pointer', fontSize:13, fontWeight:'bold' }}>📥 CSV出力</button></div>}
+                {records.length === 0 ? <div style={{ textAlign:'center', padding:'60px 0', color:'#444' }}><div style={{ fontSize:40, marginBottom:12 }}>🗂️</div>まだデータがありません</div>
+                  : records.map(r => (
+                    <div key={r.id} style={{ ...s.card, display:'flex', gap:12, padding:16 }}>
+                      <img src={r.image} style={{ width:56, height:56, objectFit:'cover', borderRadius:8, flexShrink:0 }} />
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                          <div style={{ fontSize:14, fontWeight:'bold', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'60%' }}>{r.vendor || '取引先不明'}</div>
+                          <div style={{ fontSize:15, color:'#c8a96e' }}>{fmt(r.amount)}</div>
+                        </div>
+                        <div style={{ fontSize:11, color:'#666' }}>{r.date} | {r.type} {r.category && <span style={{ color:'#5a7a5a', background:'#1a2a1a', padding:'1px 6px', borderRadius:8, marginLeft:4 }}>{r.category}</span>}</div>
+                      </div>
+                    </div>
+                  ))}
+              </>}
+              {tab === 'report' && <>
+                <div style={{ ...s.card, display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                  {[['件数',records.length+'件','📋'],['合計',fmt(totalAmount),'💴'],['消費税',fmt(totalTax),'🧾']].map(([l,v,i]) => (
+                    <div key={l} style={{ textAlign:'center' }}><div style={{ fontSize:20, marginBottom:4 }}>{i}</div><div style={{ fontSize:13, color:'#c8a96e' }}>{v}</div><div style={{ fontSize:10, color:'#555' }}>{l}</div></div>
+                  ))}
+                </div>
+                {byCategory.length > 0 && <div style={s.card}>
+                  {byCategory.sort((a,b)=>b.total-a.total).map(({cat,total})=>(
+                    <div key={cat} style={{ marginBottom:14 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}><span style={{ fontSize:12, color:'#888' }}>{cat}</span><span style={{ fontSize:12, color:'#c8a96e' }}>{fmt(total)}</span></div>
+                      <div style={{ height:4, background:'#1e1e2e', borderRadius:2 }}><div style={{ height:'100%', borderRadius:2, background:'linear-gradient(90deg,#c8a96e,#8a6a3e)', width:`${(total/maxCat)*100}%` }} /></div>
+                    </div>
+                  ))}
+                </div>}
+              </>}
+            </div>
+          </>}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
