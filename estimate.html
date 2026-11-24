@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#14213d" />
+<title>その場で概算見積</title>
+<style>
+  :root {
+    --ink: #14213d; --sub: #5b6477; --line: #dfe3ea; --bg: #f3f4f7; --card: #fff;
+    --pri: #1d4ed8; --pri-ink: #fff; --warn: #b45309; --warn-bg: #fff7e6; --bad: #b42318; --ok: #15803d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  #app { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; padding: 8px 0 16px; }
+  header.top h1 { font-size: 20px; letter-spacing: .02em; }
+  header.top span { font-size: 12px; color: var(--sub); }
+  h2 { font-size: 15px; margin: 20px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .muted { color: var(--sub); font-size: 13px; }
+  label.f { display: block; font-size: 13px; color: var(--sub); margin-bottom: 12px; }
+  label.f input, label.f textarea, label.f select { display: block; width: 100%; margin-top: 4px; }
+  input, textarea, select { background: #fff; border: 1px solid #c7cdd8; border-radius: 10px; padding: 10px 12px; font-size: 16px; min-height: 44px; color: var(--ink); }
+  select { width: 100%; max-width: 100%; text-overflow: ellipsis; }
+  textarea { min-height: 88px; resize: vertical; }
+  input:focus, textarea:focus, select:focus, button:focus-visible { outline: 2px solid var(--pri); outline-offset: 1px; }
+  .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 52px; border-radius: 12px; border: 1px solid #c7cdd8; background: #fff; font-weight: 600; cursor: pointer; padding: 10px 14px; text-align: center; }
+  .btn.pri { background: var(--pri); border-color: var(--pri); color: var(--pri-ink); font-size: 17px; }
+  .btn.sm { min-height: 44px; width: auto; font-size: 14px; font-weight: 500; }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--pri); }
+  .btn.danger { color: var(--bad); }
+  .btn:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > .grow { flex: 1; min-width: 0; }
+  .stack > * + * { margin-top: 10px; }
+  .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photos .ph { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #e6e9ef; }
+  .photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photos .x { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(20,33,61,.75); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
+  .photos label.add { aspect-ratio: 1; border: 2px dashed #aeb6c5; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; color: var(--sub); cursor: pointer; background: #fff; text-align: center; }
+  .photos label.add b { font-size: 26px; font-weight: 400; color: var(--pri); line-height: 1.1; }
+  .notice { background: var(--warn-bg); border: 1px solid #f1d39a; color: #6b4a06; border-radius: 12px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+  .error { background: #fef3f2; border: 1px solid #f3b6b0; color: var(--bad); border-radius: 12px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; white-space: pre-wrap; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: #eef2ff; color: var(--pri); vertical-align: middle; }
+  .tag.ai { background: var(--warn-bg); color: var(--warn); }
+  .item { border-top: 1px solid var(--line); padding: 12px 0; }
+  .item:first-child { border-top: 0; padding-top: 0; }
+  .item .name { width: 100%; font-weight: 600; }
+  .item .nums { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px minmax(0,56px) minmax(0,1.3fr); gap: 6px; margin-top: 6px; align-items: center; }
+  .item .nums input { padding: 10px 6px; text-align: right; width: 100%; }
+  .item .nums input.unit { text-align: center; }
+  .step { min-height: 44px; border-radius: 10px; border: 1px solid #c7cdd8; background: #fff; font-size: 20px; cursor: pointer; }
+  .item .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; gap: 8px; }
+  .item .amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .basis { font-size: 12px; color: var(--sub); margin-top: 4px; }
+  .totals { font-variant-numeric: tabular-nums; }
+  .totals div { display: flex; justify-content: space-between; padding: 3px 0; }
+  .totals .grand { border-top: 2px solid var(--ink); margin-top: 6px; padding-top: 8px; font-size: 22px; font-weight: 800; }
+  ul.plain { padding-left: 1.2em; font-size: 14px; }
+  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+  nav.tabs button { flex: 1; max-width: 140px; min-height: 60px; border: 0; background: none; font-size: 13px; color: var(--sub); cursor: pointer; border-top: 3px solid transparent; }
+  nav.tabs button[aria-current="page"] { color: var(--pri); border-top-color: var(--pri); font-weight: 700; }
+  .hist { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; border: 0; background: none; cursor: pointer; padding: 0; }
+  .hist img, .hist .noimg { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: #e6e9ef; flex: none; }
+  .hist .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl-row { display: grid; grid-template-columns: minmax(0,1fr) 60px 100px 44px; gap: 6px; margin-bottom: 6px; }
+  .pl-row input { padding: 10px 8px; width: 100%; }
+  .pl-row input.num { text-align: right; }
+  .pl-cat { display: flex; gap: 6px; margin: 16px 0 6px; }
+  .pl-cat input { flex: 1; font-weight: 700; background: #eef1f6; border-color: transparent; }
+  .del { min-height: 44px; border-radius: 10px; border: 1px solid #c7cdd8; background: #fff; color: var(--bad); cursor: pointer; font-size: 18px; }
+  .busy { position: fixed; inset: 0; background: rgba(243,244,247,.94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 20; padding: 24px; text-align: center; }
+  .spin { width: 44px; height: 44px; border: 4px solid #cfd6e4; border-top-color: var(--pri); border-radius: 50%; animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } }
+
+  /* お客様提示画面 */
+  .present { position: fixed; inset: 0; background: #fff; z-index: 10; overflow-y: auto; }
+  .present .in { max-width: 640px; margin: 0 auto; padding: 24px 20px calc(120px + env(safe-area-inset-bottom)); }
+  .present .doc { font-size: 13px; color: var(--sub); display: flex; justify-content: space-between; gap: 12px; }
+  .present h1 { font-size: 22px; letter-spacing: .3em; text-align: center; margin: 18px 0; }
+  .present .to { font-size: 19px; font-weight: 700; border-bottom: 1px solid var(--ink); padding-bottom: 4px; margin-bottom: 6px; }
+  .present .big { background: var(--ink); color: #fff; border-radius: 16px; padding: 18px; text-align: center; margin: 16px 0; }
+  .present .big small { display: block; font-size: 13px; opacity: .8; }
+  .present .big strong { display: block; font-size: 40px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .present .big .range { font-size: 15px; margin-top: 4px; opacity: .92; }
+  .present table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .present th { font-size: 12px; color: var(--sub); font-weight: 500; text-align: right; border-bottom: 1px solid var(--ink); padding: 6px 4px; }
+  .present th:first-child, .present td:first-child { text-align: left; }
+  .present td { border-bottom: 1px solid var(--line); padding: 8px 4px; text-align: right; vertical-align: top; white-space: nowrap; }
+  .present td:first-child { white-space: normal; }
+  .present .sum { margin: 10px 0 0 auto; width: 260px; max-width: 100%; }
+  .present .cond { font-size: 13px; margin-top: 18px; }
+  .present .cond h3 { font-size: 13px; margin-bottom: 4px; }
+  .present .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: center; }
+  .present .bar .btn { max-width: 190px; }
+  @media print {
+    body { background: #fff; }
+    #app, nav.tabs, .present .bar { display: none !important; }
+    .present { position: static; overflow: visible; }
+    .present .in { padding: 0; }
+    .present .big { background: #fff; color: #000; border: 2px solid #000; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav class="tabs" id="tabs"></nav>
+<div id="overlay"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   その場で概算見積 — 写真からAIが数量を拾い、自社の単価表で計算する
+   データはすべてこの端末の localStorage に保存されます。
+   ========================================================= */
+
+const MODEL = 'claude-opus-5-5';
+const MAX_PHOTOS = 6;
+
+// ---------- 業種別サンプル単価（必ず自社の単価に書き換えてください） ----------
+const PRESETS = {
+  reform: { label: 'リフォーム・内装・塗装', rows: [
+    ['内装', 'クロス張替え（量産品）', '㎡', 1200], ['内装', 'クロス張替え（ハイグレード）', '㎡', 1800],
+    ['内装', 'クッションフロア張替え', '㎡', 3500], ['内装', 'フローリング重ね張り', '㎡', 9000],
+    ['内装', '畳 表替え', '枚', 6000], ['内装', '襖 張替え', '枚', 4000],
+    ['塗装', '外壁塗装（シリコン）', '㎡', 3000], ['塗装', '屋根塗装', '㎡', 2800], ['塗装', '足場設置', '㎡', 900],
+    ['設備', '洗面台交換', '式', 90000], ['設備', 'トイレ交換', '式', 150000], ['設備', '水栓交換', '箇所', 25000],
+    ['諸経費', '養生・清掃', '式', 15000], ['諸経費', '廃材処分', '式', 20000], ['諸経費', '出張・諸経費', '式', 10000],
+  ]},
+  disposal: { label: '不用品回収・片付け', rows: [
+    ['家具', 'タンス・食器棚（大）', '点', 6000], ['家具', 'ソファ（2〜3人掛け）', '点', 5000],
+    ['家具', 'ベッド（マットレス込み）', '点', 8000], ['家具', 'テーブル・机', '点', 3000], ['家具', '椅子', '点', 1000],
+    ['家電', '冷蔵庫（大型）', '台', 9000], ['家電', '洗濯機', '台', 6000], ['家電', 'テレビ', '台', 5000],
+    ['家電', 'エアコン取外し・回収', '台', 8000], ['家電', '小型家電（レンジ等）', '点', 1500],
+    ['物量', '段ボール・袋ごみ', '箱', 500], ['物量', '軽トラック積み放題', '台', 25000], ['物量', '2tトラック積み放題', '台', 60000],
+    ['作業', '作業員追加', '人', 12000], ['作業', '階段作業（EVなし）', '階', 2000], ['作業', '出張費', '式', 3000],
+  ]},
+  cleaning: { label: 'ハウスクリーニング', rows: [
+    ['エアコン', '壁掛けエアコン洗浄', '台', 10000], ['エアコン', 'お掃除機能付きエアコン洗浄', '台', 18000], ['エアコン', '室外機洗浄', '台', 4000],
+    ['水回り', 'キッチン', '式', 16000], ['水回り', 'レンジフード', '台', 14000], ['水回り', '浴室', '式', 15000],
+    ['水回り', 'トイレ', '箇所', 8000], ['水回り', '洗面所', '箇所', 8000],
+    ['室内', '床洗浄・ワックス', '㎡', 800], ['室内', '窓・サッシ', '枚', 1500], ['室内', '空室クリーニング（1K）', '式', 25000],
+    ['その他', '出張費', '式', 2000], ['その他', '駐車場代', '式', 1000],
+  ]},
+};
+
+// ---------- 保存 ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('est_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('est_' + k, JSON.stringify(v)); return true; } catch { return false; } },
+};
+const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+let settings = Object.assign(
+  { apiKey: '', company: '', staff: '', taxRate: 10, validDays: 30, footer: '本書は写真と聞き取りに基づく概算です。正式なお見積りは現地調査のうえご提示します。' },
+  store.get('settings', {})
+);
+// 同じ場所に置いたレシート読取アプリのAPIキーがあれば引き継ぐ
+if (!settings.apiKey) { try { settings.apiKey = localStorage.getItem('anthropic_key') || ''; } catch {} }
+let priceList = store.get('prices', []);   // {id, cat, name, unit, price}
+let estimates = store.get('estimates', []); // 見積もり履歴
+
+const newDraft = () => ({
+  id: uid('e'), createdAt: Date.now(), customer: '', title: '', memo: '',
+  items: [], summary: '', assumptions: '', unknowns: [], confidence: '', rangePct: 0, discount: 0, thumbs: [],
+});
+const S = { tab: 'new', step: 'capture', draft: newDraft(), photos: [], busy: '', err: '', presenting: false, saveWarn: false };
+
+// ---------- 小道具 ----------
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const yen = (n) => '¥' + Math.round(n || 0).toLocaleString('ja-JP');
+const num = (v) => { const n = parseFloat(String(v).replace(/[,，¥\s]/g, '')); return Number.isFinite(n) ? n : 0; };
+const fmtDate = (t) => { const d = new Date(t); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; };
+const qtyStr = (q) => (Math.round(q * 100) / 100).toLocaleString('ja-JP');
+
+function calc(d) {
+  const subtotal = d.items.reduce((s, it) => s + Math.round(num(it.qty) * num(it.price)), 0);
+  const discount = Math.min(Math.max(num(d.discount), 0), subtotal);
+  const taxable = subtotal - discount;
+  const tax = Math.floor(taxable * num(settings.taxRate) / 100);
+  const total = taxable + tax;
+  const p = num(d.rangePct) / 100;
+  const low = Math.floor(total * (1 - p) / 1000) * 1000;
+  const high = Math.ceil(total * (1 + p) / 1000) * 1000;
+  return { subtotal, discount, taxable, tax, total, low, high, hasRange: p > 0 && total > 0 };
+}
+
+function saveDraft() {
+  const d = S.draft;
+  const i = estimates.findIndex((e) => e.id === d.id);
+  const copy = JSON.parse(JSON.stringify(d));
+  if (i >= 0) estimates[i] = copy; else estimates.unshift(copy);
+  S.saveWarn = !store.set('estimates', estimates);
+}
+
+// ---------- 画像 ----------
+const readDataUrl = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('ファイルを読み込めませんでした')); r.readAsDataURL(file); });
+
+function scaleImage(file, maxEdge, quality) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('この画像形式は読み込めませんでした（JPEG / PNG でお試しください）')); };
+    img.src = url;
+  });
+}
+
+async function addPhotos(files) {
+  S.err = '';
+  for (const f of files) {
+    if (S.photos.length >= MAX_PHOTOS) { S.err = `写真は${MAX_PHOTOS}枚までです`; break; }
+    try {
+      const full = await scaleImage(f, 1568, 0.82);
+      const thumb = await scaleImage(f, 220, 0.6);
+      S.photos.push({ full, thumb });
+    } catch (e) { S.err = e.message; }
+  }
+  render();
+}
+
+// ---------- AI 呼び出し ----------
+async function callClaude({ system, content, schema }) {
+  if (!settings.apiKey) throw new Error('APIキーが未登録です。「設定」タブで登録してください。');
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 180000);
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': settings.apiKey,
+        'anthropic-version': '2026-10-21',
+        'anthropic-beta': 'server-side-fallback-2026-07-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 16000,
+        fallbacks: 'default',
+        system,
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+        messages: [{ role: 'user', content }],
+      }),
+    });
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? '応答に時間がかかりすぎました。電波の良い場所で、写真を減らしてもう一度お試しください。' : '通信できませんでした。電波状況を確認してください。');
+  } finally { clearTimeout(timer); }
+
+  if (!res.ok) {
+    let msg = '';
+    try { msg = (await res.json())?.error?.message || ''; } catch {}
+    if (res.status === 401) throw new Error('APIキーが正しくありません。「設定」タブで確認してください。');
+    if (res.status === 429) throw new Error('利用が集中しています。少し待ってからもう一度お試しください。');
+    if (res.status >= 500) throw new Error('AIサービスが混み合っています。少し待ってからもう一度お試しください。');
+    throw new Error('AIの呼び出しに失敗しました（' + res.status + '）' + (msg ? '\n' + msg : ''));
+  }
+  const data = await res.json();
+  if (data.stop_reason === 'refusal') throw new Error('この写真・内容ではAIが見積もりを作成できませんでした。手入力で作成してください。');
+  if (data.stop_reason === 'max_tokens') throw new Error('AIの回答が長すぎて途中で切れました。写真やメモを絞ってもう一度お試しください。');
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  try { return JSON.parse(text); } catch { throw new Error('AIの回答を読み取れませんでした。もう一度お試しください。'); }
+}
+
+const ESTIMATE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['summary', 'items', 'assumptions', 'unknowns', 'confidence'],
+  properties: {
+    summary: { type: 'string', description: '写真から読み取れた現場の状況（2〜3文）' },
+    items: { type: 'array', items: {
+      type: 'object', additionalProperties: false,
+      required: ['price_id', 'name', 'unit', 'qty', 'unit_price', 'basis'],
+      properties: {
+        price_id: { type: 'string', description: '単価表のID。単価表にない項目は空文字' },
+        name: { type: 'string' }, unit: { type: 'string' },
+        qty: { type: 'number' },
+        unit_price: { type: 'number', description: '税抜単価（円）。単価表の項目は表の単価' },
+        basis: { type: 'string', description: 'この数量にした根拠（1文）' },
+      } } },
+    assumptions: { type: 'array', items: { type: 'string' }, description: 'お客様に示す前提条件' },
+    unknowns: { type: 'array', items: { type: 'string' }, description: '写真では分からず、現地で担当者が確認すべき点' },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+  },
+};
+
+const ESTIMATE_SYSTEM = `あなたは日本の現場系サービス業（工事・回収・清掃など）の積算担当者です。担当者がお客様先でスマホ撮影した写真とメモから、その場で提示する概算見積もりの明細案を作ります。金額の計算はアプリ側が行うので、あなたの仕事は「どの項目が、どれだけの数量必要か」を拾い出すことです。
+
+進め方:
+- 明細は、渡された単価表の項目から選ぶのが基本です。選んだ項目は price_id に単価表のIDを入れ、name・unit・unit_price は表のとおりにします。数量はその項目の単位で出してください。
+- 作業に必要なのに単価表にない項目があれば、price_id を空文字にして追加し、日本国内の一般的な相場から税抜単価を入れてください。アプリ上で「AI推定単価」と表示され、担当者が確認します。
+- 数量は写真に写っているもの（ドアや窓、畳、人、家電などの寸法の目安になるもの）とメモから見積もります。メモに寸法や数量が書かれていれば、写真からの推定よりメモを優先します。面積や長さは計算過程が分かるように basis に書いてください（例：「幅3.6m×奥行2.7m×高さ2.4mの壁4面から開口部を除き約26㎡」）。
+- 出張費・養生・処分費など、その作業に通常伴う諸経費が単価表にあれば含めます。写真やメモから必要性が読み取れない項目は入れません。
+- 写っていない範囲、裏側、下地の状態など、写真では判断できないことは推測で埋めずに unknowns に書きます。これは担当者がその場でお客様に確認するためのリストです。
+- assumptions は見積書に印字されお客様が読みます。「写真に写っている範囲のみを対象」のように、金額が変わりうる条件を平易な言葉で書いてください。
+- confidence は、数量の確からしさです。寸法の手がかりが十分なら high、目測中心なら medium、写真が不鮮明・範囲が不明なら low にします。
+- 写真が見積もり対象と関係ない、または何も判断できない場合は、items を空にして summary にその旨を書いてください。`;
+
+const IMPORT_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['items'],
+  properties: { items: { type: 'array', items: {
+    type: 'object', additionalProperties: false, required: ['category', 'name', 'unit', 'unit_price'],
+    properties: { category: { type: 'string' }, name: { type: 'string' }, unit: { type: 'string' }, unit_price: { type: 'number' } },
+  } } },
+};
+
+async function runAI() {
+  const d = S.draft;
+  if (!S.photos.length) { S.err = '写真を1枚以上追加してください'; return render(); }
+  S.err = ''; S.busy = '写真を解析して見積もりを作成しています…\n30秒〜1分ほどかかります'; render();
+  try {
+    const list = priceList.map((p) => `${p.id} | ${p.cat} | ${p.name} | ${p.unit} | ${p.price}`).join('\n');
+    const content = S.photos.map((p) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: p.full.split(',')[1] } }));
+    content.push({ type: 'text', text:
+      `件名: ${d.title || '（未入力）'}\n担当者メモ: ${d.memo || '（なし）'}\n\n` +
+      `単価表（ID | カテゴリ | 項目 | 単位 | 税抜単価 円）:\n${list || '（未登録。すべて相場から推定してください）'}` });
+    const r = await callClaude({ system: ESTIMATE_SYSTEM, content, schema: ESTIMATE_SCHEMA });
+    d.items = (r.items || []).filter((it) => num(it.qty) > 0).map((it) => {
+      const p = priceList.find((x) => x.id === it.price_id);
+      return p
+        ? { name: p.name, unit: p.unit, price: p.price, qty: num(it.qty), src: 'list', basis: it.basis || '' }
+        : { name: it.name, unit: it.unit, price: Math.round(num(it.unit_price)), qty: num(it.qty), src: 'ai', basis: it.basis || '' };
+    });
+    d.summary = r.summary || '';
+    d.assumptions = (r.assumptions || []).join('\n');
+    d.unknowns = r.unknowns || [];
+    d.confidence = r.confidence || 'medium';
+    d.rangePct = { high: 10, medium: 20, low: 30 }[d.confidence] || 20;
+    d.thumbs = S.photos.map((p) => p.thumb);
+    S.step = 'edit';
+    saveDraft();
+  } catch (e) { S.err = e.message; }
+  S.busy = ''; render(); window.scrollTo(0, 0);
+}
+
+async function importPrices(file) {
+  S.err = ''; S.busy = '見積書から単価を読み取っています…'; render();
+  try {
+    let block;
+    if (file.type === 'application/pdf') {
+      block = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: (await readDataUrl(file)).split(',')[1] } };
+    } else {
+      block = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: (await scaleImage(file, 2000, 0.85)).split(',')[1] } };
+    }
+    const r = await callClaude({
+      system: 'あなたは見積書から単価表を作る事務担当者です。渡された過去の見積書・料金表から、今後の見積もりに再利用できる明細項目を抜き出します。項目名・単位・税抜単価は書かれているとおりに写し、書かれていない単価を推測で補わないでください。小計・合計・消費税・値引きの行は項目ではないので含めません。category には内容から判断した短い分類名（例：内装、設備、諸経費）を入れます。',
+      content: [block, { type: 'text', text: 'この書類から単価表の項目を抜き出してください。' }],
+      schema: IMPORT_SCHEMA,
+    });
+    const added = (r.items || []).filter((it) => it.name && num(it.unit_price) > 0)
+      .map((it) => ({ id: uid('p'), cat: it.category || 'その他', name: it.name, unit: it.unit || '式', price: Math.round(num(it.unit_price)) }));
+    if (!added.length) throw new Error('単価を読み取れる項目が見つかりませんでした。');
+    priceList = priceList.concat(added); store.set('prices', priceList);
+    S.info = `${added.length}件の項目を追加しました。内容を確認してください。`;
+  } catch (e) { S.err = e.message; }
+  S.busy = ''; render();
+}
+
+function loadPreset(key) {
+  priceList = PRESETS[key].rows.map(([cat, name, unit, price]) => ({ id: uid('p'), cat, name, unit, price }));
+  store.set('prices', priceList);
+}
+
+// ---------- 画面 ----------
+function viewNew() {
+  const d = S.draft;
+  if (!priceList.length && !store.get('skipPreset', false)) {
+    return `<div class="card stack">
+      <h2 style="margin-top:0">はじめに：業種を選んでください</h2>
+      <p class="muted">サンプルの単価表を読み込みます。金額は仮のものなので、あとで「単価表」タブで自社の単価に書き換えてください。</p>
+      ${Object.entries(PRESETS).map(([k, p]) => `<button class="btn" data-act="preset" data-key="${k}">${esc(p.label)}</button>`).join('')}
+      <button class="btn ghost" data-act="skip-preset">単価表は自分で一から作る</button>
+    </div>`;
+  }
+  if (S.step === 'capture') {
+    return `
+      ${!settings.apiKey ? `<div class="notice">AIで写真から見積もるには、「設定」タブでAPIキーの登録が必要です。手入力での見積もりは今すぐ使えます。</div>` : ''}
+      ${S.err ? `<div class="error" role="alert">${esc(S.err)}</div>` : ''}
+      <h2>1. 現場の写真 <span class="muted">（${S.photos.length}/${MAX_PHOTOS}枚）</span></h2>
+      <div class="photos">
+        ${S.photos.map((p, i) => `<div class="ph"><img src="${p.thumb}" alt="写真${i + 1}"><button class="x" data-act="rm-photo" data-i="${i}" aria-label="写真${i + 1}を削除">×</button></div>`).join('')}
+        ${S.photos.length < MAX_PHOTOS ? `
+          <label class="add"><b>＋</b>撮影する<input type="file" accept="image/*" capture="environment" data-file="photo" hidden></label>
+          <label class="add"><b>＋</b>アルバムから<input type="file" accept="image/*" multiple data-file="photo" hidden></label>` : ''}
+      </div>
+      <p class="muted" style="margin-top:6px">全体が分かる引きの写真と、ドアや窓など大きさの目安になるものを一緒に写すと精度が上がります。</p>
+      <h2>2. 内容</h2>
+      <div class="card">
+        <label class="f">お客様名<input data-d="customer" value="${esc(d.customer)}" placeholder="例：山田 太郎" autocomplete="off"></label>
+        <label class="f">件名<input data-d="title" value="${esc(d.title)}" placeholder="例：6畳洋室 クロス張替え" autocomplete="off"></label>
+        <label class="f" style="margin-bottom:0">作業内容・メモ<textarea data-d="memo" placeholder="例：壁4面と天井。天井高2.4m。家具の移動あり">${esc(d.memo)}</textarea></label>
+      </div>
+      <div class="stack">
+        <button class="btn pri" data-act="ai" ${settings.apiKey ? '' : 'disabled'}>AIで概算見積もりを作成</button>
+        <button class="btn" data-act="manual">写真を使わず手入力で作成</button>
+      </div>`;
+  }
+  // 編集
+  const c = calc(d);
+  const conf = { high: '確度：高', medium: '確度：中', low: '確度：低' }[d.confidence];
+  return `
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn sm ghost" data-act="back">← 写真・内容に戻る</button>
+      <span class="grow"></span>
+      <button class="btn sm" data-act="new">新しい見積もり</button>
+    </div>
+    ${S.saveWarn ? `<div class="error">端末の保存領域がいっぱいで、この見積もりを保存できませんでした。「履歴」から古い見積もりを削除してください。</div>` : ''}
+    ${d.summary ? `<div class="card">
+      <div class="row"><b class="grow">AIの所見</b>${conf ? `<span class="tag ${d.confidence === 'high' ? '' : 'ai'}">${conf}</span>` : ''}</div>
+      <p style="font-size:14px;margin-top:4px">${esc(d.summary)}</p>
+      ${d.unknowns.length ? `<p class="muted" style="margin-top:8px"><b>現地で確認すること</b></p><ul class="plain">${d.unknowns.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>` : ''}
+    </div>` : ''}
+    <h2>明細 <span class="muted">（単価は税抜）</span></h2>
+    <div class="card">
+      ${d.items.length ? d.items.map((it, i) => `
+        <div class="item">
+          <input class="name" data-it="name" data-i="${i}" value="${esc(it.name)}" aria-label="項目名">
+          <div class="nums">
+            <button class="step" data-act="dec" data-i="${i}" aria-label="数量を減らす">−</button>
+            <input data-it="qty" data-i="${i}" value="${esc(it.qty)}" inputmode="decimal" aria-label="数量">
+            <button class="step" data-act="inc" data-i="${i}" aria-label="数量を増やす">＋</button>
+            <input class="unit" data-it="unit" data-i="${i}" value="${esc(it.unit)}" aria-label="単位">
+            <input data-it="price" data-i="${i}" value="${esc(it.price)}" inputmode="numeric" aria-label="単価">
+          </div>
+          <div class="foot">
+            <span>${it.src === 'ai' ? '<span class="tag ai">AI推定単価・要確認</span>' : ''}</span>
+            <span class="row"><span class="amt">${yen(Math.round(num(it.qty) * num(it.price)))}</span>
+            <button class="btn sm ghost danger" data-act="rm-item" data-i="${i}">削除</button></span>
+          </div>
+          ${it.basis ? `<div class="basis">根拠：${esc(it.basis)}</div>` : ''}
+        </div>`).join('') : `<p class="muted">明細がありません。下から項目を追加してください。</p>`}
+    </div>
+    <div class="card stack">
+      <select data-add aria-label="単価表から追加">
+        <option value="">＋ 単価表から項目を追加…</option>
+        ${groupBy(priceList).map(([cat, rows]) => `<optgroup label="${esc(cat)}">${rows.map((p) => `<option value="${p.id}">${esc(p.name)}（${yen(p.price)}/${esc(p.unit)}）</option>`).join('')}</optgroup>`).join('')}
+      </select>
+      <button class="btn sm" style="width:100%" data-act="add-free">＋ 自由入力の行を追加</button>
+    </div>
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <label class="f grow" style="margin:0">値引き（円）<input data-d="discount" data-rerender value="${esc(d.discount || '')}" inputmode="numeric" placeholder="0"></label>
+        <label class="f grow" style="margin:0">概算の幅<select data-d="rangePct" data-rerender>
+          ${[0, 10, 20, 30].map((v) => `<option value="${v}" ${num(d.rangePct) === v ? 'selected' : ''}>${v ? '±' + v + '%' : '幅なし'}</option>`).join('')}
+        </select></label>
+      </div>
+      <div class="totals">
+        <div><span>小計</span><span>${yen(c.subtotal)}</span></div>
+        ${c.discount ? `<div><span>値引き</span><span>−${yen(c.discount)}</span></div>` : ''}
+        <div><span>消費税（${esc(settings.taxRate)}%）</span><span>${yen(c.tax)}</span></div>
+        <div class="grand"><span>合計（税込）</span><span>${yen(c.total)}</span></div>
+        ${c.hasRange ? `<div class="muted"><span>概算幅</span><span>${yen(c.low)} 〜 ${yen(c.high)}</span></div>` : ''}
+      </div>
+    </div>
+    <div class="card">
+      <label class="f" style="margin:0">前提条件（見積書に表示されます・1行に1つ）<textarea data-d="assumptions">${esc(d.assumptions)}</textarea></label>
+    </div>
+    <button class="btn pri" data-act="present" ${d.items.length ? '' : 'disabled'}>お客様に提示する</button>`;
+}
+
+function groupBy(list) {
+  const m = new Map();
+  for (const p of list) { if (!m.has(p.cat)) m.set(p.cat, []); m.get(p.cat).push(p); }
+  return [...m.entries()];
+}
+
+function viewHistory() {
+  if (!estimates.length) return `<div class="card"><p class="muted">まだ見積もりがありません。「新規」タブから作成すると、ここに自動で保存されます。</p></div>`;
+  return estimates.map((e) => `
+    <div class="card"><div class="row">
+      <button class="hist grow" data-act="open" data-id="${e.id}">
+        ${e.thumbs && e.thumbs[0] ? `<img src="${e.thumbs[0]}" alt="">` : `<span class="noimg"></span>`}
+        <span style="min-width:0">
+          <span class="t" style="display:block">${esc(e.customer ? e.customer + ' 様' : '（お客様名なし）')}</span>
+          <span class="muted" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title || '件名なし')}・${fmtDate(e.createdAt)}</span>
+          <b>${yen(calc(e).total)}</b>
+        </span>
+      </button>
+      <button class="del" style="width:44px" data-act="rm-est" data-id="${e.id}" aria-label="この見積もりを削除">×</button>
+    </div></div>`).join('');
+}
+
+function viewPrices() {
+  return `
+    ${S.err ? `<div class="error" role="alert">${esc(S.err)}</div>` : ''}
+    ${S.info ? `<div class="notice">${esc(S.info)}</div>` : ''}
+    <p class="muted">AIはこの単価表から項目を選び、数量だけを写真から見積もります。金額はここに登録した単価で計算されます（税抜）。</p>
+    ${groupBy(priceList).map(([cat, rows]) => `
+      <div class="pl-cat"><input data-cat="${esc(cat)}" value="${esc(cat)}" aria-label="カテゴリ名"></div>
+      ${rows.map((p) => `<div class="pl-row">
+        <input data-p="name" data-id="${p.id}" value="${esc(p.name)}" aria-label="項目名">
+        <input data-p="unit" data-id="${p.id}" value="${esc(p.unit)}" aria-label="単位" style="text-align:center">
+        <input class="num" data-p="price" data-id="${p.id}" value="${esc(p.price)}" inputmode="numeric" aria-label="単価">
+        <button class="del" data-act="rm-price" data-id="${p.id}" aria-label="${esc(p.name)}を削除">×</button>
+      </div>`).join('')}
+      <button class="btn sm ghost" data-act="add-price" data-cat="${esc(cat)}">＋ 「${esc(cat)}」に項目を追加</button>
+    `).join('')}
+    <div class="card stack" style="margin-top:20px">
+      <button class="btn sm" style="width:100%" data-act="add-cat">＋ 新しいカテゴリを追加</button>
+      <label class="btn sm" style="width:100%">過去の見積書・料金表を読み取って追加（写真 / PDF）
+        <input type="file" accept="image/*,application/pdf" data-file="import" hidden></label>
+      <p class="muted">これまで作った見積書を撮影すると、AIが項目と単価を抜き出して単価表に追加します。${settings.apiKey ? '' : '（APIキーの登録が必要です）'}</p>
+    </div>
+    <div class="card stack">
+      <label class="f" style="margin:0">サンプル単価表に入れ替える
+        <select data-preset><option value="">業種を選ぶ…</option>${Object.entries(PRESETS).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join('')}</select></label>
+      <p class="muted">現在の単価表はすべて置き換わります。サンプルの金額は仮のものです。</p>
+    </div>`;
+}
+
+function viewSettings() {
+  return `
+    <div class="card">
+      <label class="f">会社名・屋号<input data-s="company" value="${esc(settings.company)}" placeholder="例：〇〇リフォーム"></label>
+      <label class="f">担当者名<input data-s="staff" value="${esc(settings.staff)}"></label>
+      <div class="row">
+        <label class="f grow">消費税率（%）<input data-s="taxRate" value="${esc(settings.taxRate)}" inputmode="decimal"></label>
+        <label class="f grow">有効期限（日）<input data-s="validDays" value="${esc(settings.validDays)}" inputmode="numeric"></label>
+      </div>
+      <label class="f" style="margin:0">見積書の注記<textarea data-s="footer">${esc(settings.footer)}</textarea></label>
+    </div>
+    <div class="card">
+      <label class="f">Anthropic APIキー<input data-s="apiKey" type="password" value="${esc(settings.apiKey)}" placeholder="sk-ant-..." autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <p class="muted">キーはこの端末のブラウザ内にだけ保存され、AIの呼び出し時にAnthropicへ直接送られます。写真の解析1回ごとにAPI利用料がかかります。端末を他人と共用する場合は登録しないでください。</p>
+    </div>
+    <p class="muted">見積もり・単価表・設定はすべてこの端末に保存されます。ブラウザの閲覧データを消去すると失われます。</p>`;
+}
+
+function viewPresent() {
+  const d = S.draft, c = calc(d);
+  const valid = new Date(d.createdAt + num(settings.validDays) * 86400000);
+  const conds = d.assumptions.split('\n').map((s) => s.trim()).filter(Boolean);
+  return `<div class="present" role="dialog" aria-label="概算見積書"><div class="in">
+    <div class="doc"><span>${fmtDate(d.createdAt)}</span><span style="text-align:right">${esc(settings.company)}${settings.staff ? '<br>担当：' + esc(settings.staff) : ''}</span></div>
+    <h1>概算御見積書</h1>
+    <div class="to">${esc(d.customer || '　　　　　')} 様</div>
+    ${d.title ? `<div>件名：${esc(d.title)}</div>` : ''}
+    <div class="big">
+      <small>概算お見積り金額（税込）</small>
+      <strong>${yen(c.total)}</strong>
+      ${c.hasRange ? `<div class="range">現地の状況により ${yen(c.low)} 〜 ${yen(c.high)}</div>` : ''}
+    </div>
+    <table>
+      <thead><tr><th>項目</th><th>数量</th><th>単価</th><th>金額</th></tr></thead>
+      <tbody>${d.items.map((it) => `<tr><td>${esc(it.name)}</td><td>${qtyStr(num(it.qty))}${esc(it.unit)}</td><td>${yen(num(it.price))}</td><td>${yen(Math.round(num(it.qty) * num(it.price)))}</td></tr>`).join('')}</tbody>
+    </table>
+    <div class="totals sum">
+      <div><span>小計</span><span>${yen(c.subtotal)}</span></div>
+      ${c.discount ? `<div><span>値引き</span><span>−${yen(c.discount)}</span></div>` : ''}
+      <div><span>消費税（${esc(settings.taxRate)}%）</span><span>${yen(c.tax)}</span></div>
+      <div class="grand" style="font-size:18px"><span>合計</span><span>${yen(c.total)}</span></div>
+    </div>
+    <div class="cond">
+      ${conds.length ? `<h3>前提条件</h3><ul class="plain" style="font-size:13px">${conds.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <p style="margin-top:8px">有効期限：${fmtDate(valid)}</p>
+      <p>${esc(settings.footer)}</p>
+    </div>
+    <div class="bar">
+      <button class="btn" data-act="close-present">編集に戻る</button>
+      <button class="btn" data-act="share">共有</button>
+      <button class="btn pri" style="font-size:16px" data-act="print">印刷 / PDF</button>
+    </div>
+  </div></div>`;
+}
+
+const TABS = [['new', '新規'], ['history', '履歴'], ['prices', '単価表'], ['settings', '設定']];
+function render() {
+  const views = { new: viewNew, history: viewHistory, prices: viewPrices, settings: viewSettings };
+  document.getElementById('app').innerHTML =
+    `<header class="top"><h1>その場で概算見積</h1><span>${esc(settings.company)}</span></header>` + views[S.tab]();
+  document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
+    `<button data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}${k === 'history' && estimates.length ? `（${estimates.length}）` : ''}</button>`).join('');
+  document.getElementById('overlay').innerHTML =
+    (S.presenting ? viewPresent() : '') +
+    (S.busy ? `<div class="busy" role="status"><div class="spin"></div><p style="white-space:pre-line">${esc(S.busy)}</p></div>` : '');
+}
+
+function shareText() {
+  const d = S.draft, c = calc(d);
+  return [
+    `【概算御見積】${d.customer ? d.customer + ' 様' : ''}`, d.title ? `件名：${d.title}` : '',
+    ...d.items.map((it) => `・${it.name} ${qtyStr(num(it.qty))}${it.unit} × ${yen(num(it.price))} = ${yen(Math.round(num(it.qty) * num(it.price)))}`),
+    c.discount ? `値引き −${yen(c.discount)}` : '',
+    `合計（税込）${yen(c.total)}`, c.hasRange ? `概算幅 ${yen(c.low)} 〜 ${yen(c.high)}` : '',
+    settings.footer, settings.company,
+  ].filter(Boolean).join('\n');
+}
+
+// ---------- イベント ----------
+document.addEventListener('click', async (ev) => {
+  const tab = ev.target.closest('[data-tab]');
+  if (tab) { S.tab = tab.dataset.tab; S.err = ''; S.info = ''; render(); window.scrollTo(0, 0); return; }
+  const el = ev.target.closest('[data-act]'); if (!el) return;
+  const d = S.draft, i = +el.dataset.i, id = el.dataset.id;
+  switch (el.dataset.act) {
+    case 'preset': loadPreset(el.dataset.key); break;
+    case 'skip-preset': store.set('skipPreset', true); break;
+    case 'rm-photo': S.photos.splice(i, 1); break;
+    case 'ai': return runAI();
+    case 'manual': d.thumbs = S.photos.map((p) => p.thumb); S.step = 'edit'; S.err = ''; saveDraft(); break;
+    case 'back': S.step = 'capture'; break;
+    case 'new':
+      if (!confirm('新しい見積もりを始めますか？（現在の内容は履歴に保存されています）')) return;
+      S.draft = newDraft(); S.photos = []; S.step = 'capture'; S.err = ''; break;
+    case 'inc': d.items[i].qty = Math.round((num(d.items[i].qty) + 1) * 100) / 100; saveDraft(); break;
+    case 'dec': d.items[i].qty = Math.max(0, Math.round((num(d.items[i].qty) - 1) * 100) / 100); saveDraft(); break;
+    case 'rm-item': d.items.splice(i, 1); saveDraft(); break;
+    case 'add-free': d.items.push({ name: '', unit: '式', price: 0, qty: 1, src: 'free', basis: '' }); saveDraft(); break;
+    case 'present': saveDraft(); S.presenting = true; break;
+    case 'close-present': S.presenting = false; break;
+    case 'print': window.print(); return;
+    case 'share': {
+      const text = shareText();
+      try {
+        if (navigator.share) await navigator.share({ title: '概算御見積', text });
+        else { await navigator.clipboard.writeText(text); alert('見積もり内容をコピーしました'); }
+      } catch (e) { if (e.name !== 'AbortError') alert('共有できませんでした'); }
+      return;
+    }
+    case 'open': {
+      const e = estimates.find((x) => x.id === id); if (!e) return;
+      S.draft = JSON.parse(JSON.stringify(e)); S.photos = []; S.step = 'edit'; S.tab = 'new'; break;
+    }
+    case 'rm-est':
+      if (!confirm('この見積もりを削除しますか？')) return;
+      estimates = estimates.filter((x) => x.id !== id); store.set('estimates', estimates);
+      if (S.draft.id === id) { S.draft = newDraft(); S.photos = []; S.step = 'capture'; }
+      break;
+    case 'rm-price': priceList = priceList.filter((p) => p.id !== id); store.set('prices', priceList); break;
+    case 'add-price': priceList.push({ id: uid('p'), cat: el.dataset.cat, name: '', unit: '式', price: 0 }); store.set('prices', priceList); break;
+    case 'add-cat': {
+      const name = (prompt('カテゴリ名を入力してください') || '').trim(); if (!name) return;
+      priceList.push({ id: uid('p'), cat: name, name: '', unit: '式', price: 0 }); store.set('prices', priceList); break;
+    }
+  }
+  render();
+});
+
+// 入力中は再描画しない（フォーカスを保つ）。確定時（change）に保存・再計算する。
+document.addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (t.dataset.d && !('rerender' in t.dataset)) S.draft[t.dataset.d] = t.value;
+  if (t.dataset.s) { settings[t.dataset.s] = t.value.trim(); store.set('settings', settings); }
+});
+
+document.addEventListener('change', (ev) => {
+  const t = ev.target, d = S.draft;
+  if (t.dataset.file === 'photo') { const fs = [...t.files]; t.value = ''; return addPhotos(fs); }
+  if (t.dataset.file === 'import') { const f = t.files[0]; t.value = ''; if (f) importPrices(f); return; }
+  if (t.dataset.it) {
+    const it = d.items[+t.dataset.i], k = t.dataset.it;
+    it[k] = (k === 'qty' || k === 'price') ? Math.max(0, num(t.value)) : t.value;
+    if (k === 'price' && it.src === 'ai') it.src = 'free'; // 担当者が単価を確認・修正した
+    saveDraft(); return render();
+  }
+  if (t.dataset.d) {
+    d[t.dataset.d] = ('rerender' in t.dataset) ? num(t.value) : t.value;
+    if (S.step === 'edit') saveDraft();
+    if ('rerender' in t.dataset) render();
+    return;
+  }
+  if (t.hasAttribute('data-add') && t.value) {
+    const p = priceList.find((x) => x.id === t.value);
+    if (p) { d.items.push({ name: p.name, unit: p.unit, price: p.price, qty: 1, src: 'list', basis: '' }); saveDraft(); }
+    return render();
+  }
+  if (t.dataset.p) {
+    const p = priceList.find((x) => x.id === t.dataset.id); if (!p) return;
+    p[t.dataset.p] = t.dataset.p === 'price' ? Math.max(0, Math.round(num(t.value))) : t.value.trim();
+    store.set('prices', priceList); return;
+  }
+  if (t.dataset.cat != null) {
+    const name = t.value.trim() || t.dataset.cat;
+    priceList.forEach((p) => { if (p.cat === t.dataset.cat) p.cat = name; });
+    store.set('prices', priceList); return render();
+  }
+  if (t.hasAttribute('data-preset') && t.value) {
+    if (confirm('現在の単価表をサンプルに置き換えますか？')) loadPreset(t.value);
+    return render();
+  }
+  if (t.dataset.s) render();
+});
+
+render();
+</script>
+</body>
+</html>
