@@ -123,6 +123,17 @@ const MAX_PHOTOS = 6;
 
 // ---------- 業種別サンプル単価（必ず自社の単価に書き換えてください） ----------
 const PRESETS = {
+  bankin: { label: '自動車 鈑金・塗装', rows: [
+    ['鈑金', '鈑金（小・手のひら大まで）', '箇所', 15000], ['鈑金', '鈑金（中・A4サイズ程度まで）', '箇所', 30000],
+    ['鈑金', '鈑金（大・パネルの半分以上）', '箇所', 50000], ['鈑金', 'バンパー補修（キズ・割れ・変形）', '箇所', 15000],
+    ['塗装', 'バンパー塗装', '本', 30000], ['塗装', 'ドアパネル塗装', '枚', 40000], ['塗装', 'フェンダー塗装', '枚', 35000],
+    ['塗装', 'クォーターパネル塗装', '枚', 45000], ['塗装', 'ボンネット塗装', '枚', 50000], ['塗装', 'ルーフ塗装', '枚', 60000],
+    ['塗装', 'ドアミラー塗装', '個', 8000], ['塗装', 'ぼかし塗装（隣接パネル）', '枚', 15000], ['塗装', 'パール・3コート加算', '枚', 8000],
+    ['脱着・交換', 'バンパー脱着', '本', 8000], ['脱着・交換', 'バンパー交換工賃', '本', 12000], ['脱着・交換', 'ドア交換工賃', '枚', 25000],
+    ['脱着・交換', 'フェンダー交換工賃', '枚', 15000], ['脱着・交換', 'ライト・ランプ脱着', '個', 5000], ['脱着・交換', 'ドアミラー交換工賃', '個', 6000],
+    ['脱着・交換', '内張り・モール等の脱着', '式', 6000],
+    ['その他', 'ショートパーツ・材料費', '式', 5000], ['その他', '引取・納車', '式', 5000], ['その他', '代車費用', '日', 3000],
+  ]},
   reform: { label: 'リフォーム・内装・塗装', rows: [
     ['内装', 'クロス張替え（量産品）', '㎡', 1200], ['内装', 'クロス張替え（ハイグレード）', '㎡', 1800],
     ['内装', 'クッションフロア張替え', '㎡', 3500], ['内装', 'フローリング重ね張り', '㎡', 9000],
@@ -156,7 +167,7 @@ const store = {
 const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 let settings = Object.assign(
-  { apiKey: '', company: '', staff: '', taxRate: 10, validDays: 30, footer: '本書は写真と聞き取りに基づく概算です。正式なお見積りは現地調査のうえご提示します。' },
+  { apiKey: '', company: '', staff: '', industry: '', taxRate: 10, validDays: 30, footer: '本書は写真と聞き取りに基づく概算です。正式なお見積りは現物確認のうえご提示します。' },
   store.get('settings', {})
 );
 // 同じ場所に置いたレシート読取アプリのAPIキーがあれば引き継ぐ
@@ -295,7 +306,7 @@ const ESTIMATE_SCHEMA = {
   },
 };
 
-const ESTIMATE_SYSTEM = `あなたは日本の現場系サービス業（工事・回収・清掃など）の積算担当者です。担当者がお客様先でスマホ撮影した写真とメモから、その場で提示する概算見積もりの明細案を作ります。金額の計算はアプリ側が行うので、あなたの仕事は「どの項目が、どれだけの数量必要か」を拾い出すことです。
+const ESTIMATE_SYSTEM = `あなたは日本の現場系サービス業（自動車の鈑金塗装・工事・回収・清掃など）の積算担当者です。担当者がお客様先でスマホ撮影した写真とメモから、その場で提示する概算見積もりの明細案を作ります。金額の計算はアプリ側が行うので、あなたの仕事は「どの項目が、どれだけの数量必要か」を拾い出すことです。
 
 進め方:
 - 明細は、渡された単価表の項目から選ぶのが基本です。選んだ項目は price_id に単価表のIDを入れ、name・unit・unit_price は表のとおりにします。数量はその項目の単位で出してください。
@@ -305,7 +316,15 @@ const ESTIMATE_SYSTEM = `あなたは日本の現場系サービス業（工事�
 - 写っていない範囲、裏側、下地の状態など、写真では判断できないことは推測で埋めずに unknowns に書きます。これは担当者がその場でお客様に確認するためのリストです。
 - assumptions は見積書に印字されお客様が読みます。「写真に写っている範囲のみを対象」のように、金額が変わりうる条件を平易な言葉で書いてください。
 - confidence は、数量の確からしさです。寸法の手がかりが十分なら high、目測中心なら medium、写真が不鮮明・範囲が不明なら low にします。
-- 写真が見積もり対象と関係ない、または何も判断できない場合は、items を空にして summary にその旨を書いてください。`;
+- 写真が見積もり対象と関係ない、または何も判断できない場合は、items を空にして summary にその旨を書いてください。
+
+自動車の損傷写真の場合:
+- まず損傷しているパネル・部品を特定し（例：左リアドア、リアバンパー左角）、それぞれについてキズ・へこみ・割れ・塗装剥がれの種類と大きさを見ます。大きさは、ドアハンドル・給油口・ホイール・ナンバープレートなど寸法の分かる部品と比べて判断し、basis に書いてください。
+- パネルごとに、鈑金で直すか交換かを判断し、鈑金の大きさ区分、そのパネルの塗装、作業に必要な脱着（バンパー、ランプ、内張りなど）を拾います。プレスラインや縁にかかるへこみ、樹脂部品の割れ、パネルの大きな変形は、補修か交換かで金額が大きく変わるので、どちらを前提にしたかを assumptions に書きます。
+- 色合わせのために隣のパネルへぼかし塗装が必要になりそうな場合（メタリック・パールで、損傷がパネルの端に近いときなど）は、ぼかし塗装を入れます。ボディ色がパールや3コートに見えるときは、単価表に加算項目があれば塗装するパネル数ぶん入れます。写真で色の種類を判断しきれないときは unknowns に書きます。
+- 交換部品の部品代は車種・年式・グレードで変わり、写真からは分かりません。メモに金額がなければ部品代の行は作らず、「〇〇の部品代は別途」と assumptions に書いてください。
+- 内部の骨格やセンサー・カメラ・レーダー類の損傷、パネルの裏側、足回りへの影響は外観写真では分かりません。損傷の位置からその可能性があるときは unknowns に挙げます。
+- 車種・ボディ色・年式がメモにあればそれを使い、なければ写真から分かる範囲で summary に書きます。`;
 
 const IMPORT_SCHEMA = {
   type: 'object', additionalProperties: false, required: ['items'],
@@ -323,7 +342,7 @@ async function runAI() {
     const list = priceList.map((p) => `${p.id} | ${p.cat} | ${p.name} | ${p.unit} | ${p.price}`).join('\n');
     const content = S.photos.map((p) => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: p.full.split(',')[1] } }));
     content.push({ type: 'text', text:
-      `件名: ${d.title || '（未入力）'}\n担当者メモ: ${d.memo || '（なし）'}\n\n` +
+      `業種: ${settings.industry || '（未設定）'}\n件名: ${d.title || '（未入力）'}\n担当者メモ: ${d.memo || '（なし）'}\n\n` +
       `単価表（ID | カテゴリ | 項目 | 単位 | 税抜単価 円）:\n${list || '（未登録。すべて相場から推定してください）'}` });
     const r = await callClaude({ system: ESTIMATE_SYSTEM, content, schema: ESTIMATE_SCHEMA });
     d.items = (r.items || []).filter((it) => num(it.qty) > 0).map((it) => {
@@ -354,7 +373,7 @@ async function importPrices(file) {
       block = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: (await scaleImage(file, 2000, 0.85)).split(',')[1] } };
     }
     const r = await callClaude({
-      system: 'あなたは見積書から単価表を作る事務担当者です。渡された過去の見積書・料金表から、今後の見積もりに再利用できる明細項目を抜き出します。項目名・単位・税抜単価は書かれているとおりに写し、書かれていない単価を推測で補わないでください。小計・合計・消費税・値引きの行は項目ではないので含めません。category には内容から判断した短い分類名（例：内装、設備、諸経費）を入れます。',
+      system: 'あなたは見積書から単価表を作る事務担当者です。渡された過去の見積書・料金表から、今後の見積もりに再利用できる明細項目を抜き出します。項目名・単位・税抜単価は書かれているとおりに写し、書かれていない単価を推測で補わないでください。小計・合計・消費税・値引きの行は項目ではないので含めません。category には内容から判断した短い分類名（例：鈑金、塗装、脱着・交換、部品、諸経費）を入れます。',
       content: [block, { type: 'text', text: 'この書類から単価表の項目を抜き出してください。' }],
       schema: IMPORT_SCHEMA,
     });
@@ -367,9 +386,12 @@ async function importPrices(file) {
   S.busy = ''; render();
 }
 
+const isCar = () => settings.industry === PRESETS.bankin.label;
+
 function loadPreset(key) {
   priceList = PRESETS[key].rows.map(([cat, name, unit, price]) => ({ id: uid('p'), cat, name, unit, price }));
   store.set('prices', priceList);
+  settings.industry = PRESETS[key].label; store.set('settings', settings);
 }
 
 // ---------- 画面 ----------
@@ -387,19 +409,19 @@ function viewNew() {
     return `
       ${!settings.apiKey ? `<div class="notice">AIで写真から見積もるには、「設定」タブでAPIキーの登録が必要です。手入力での見積もりは今すぐ使えます。</div>` : ''}
       ${S.err ? `<div class="error" role="alert">${esc(S.err)}</div>` : ''}
-      <h2>1. 現場の写真 <span class="muted">（${S.photos.length}/${MAX_PHOTOS}枚）</span></h2>
+      <h2>1. ${isCar() ? '損傷箇所の写真' : '現場の写真'} <span class="muted">（${S.photos.length}/${MAX_PHOTOS}枚）</span></h2>
       <div class="photos">
         ${S.photos.map((p, i) => `<div class="ph"><img src="${p.thumb}" alt="写真${i + 1}"><button class="x" data-act="rm-photo" data-i="${i}" aria-label="写真${i + 1}を削除">×</button></div>`).join('')}
         ${S.photos.length < MAX_PHOTOS ? `
           <label class="add"><b>＋</b>撮影する<input type="file" accept="image/*" capture="environment" data-file="photo" hidden></label>
           <label class="add"><b>＋</b>アルバムから<input type="file" accept="image/*" multiple data-file="photo" hidden></label>` : ''}
       </div>
-      <p class="muted" style="margin-top:6px">全体が分かる引きの写真と、ドアや窓など大きさの目安になるものを一緒に写すと精度が上がります。</p>
+      <p class="muted" style="margin-top:6px">${isCar() ? '車全体が分かる写真、損傷パネル全体の写真、損傷の近接写真を撮ると精度が上がります。光の反射でへこみが分かる角度がおすすめです。' : '全体が分かる引きの写真と、ドアや窓など大きさの目安になるものを一緒に写すと精度が上がります。'}</p>
       <h2>2. 内容</h2>
       <div class="card">
         <label class="f">お客様名<input data-d="customer" value="${esc(d.customer)}" placeholder="例：山田 太郎" autocomplete="off"></label>
-        <label class="f">件名<input data-d="title" value="${esc(d.title)}" placeholder="例：6畳洋室 クロス張替え" autocomplete="off"></label>
-        <label class="f" style="margin-bottom:0">作業内容・メモ<textarea data-d="memo" placeholder="例：壁4面と天井。天井高2.4m。家具の移動あり">${esc(d.memo)}</textarea></label>
+        <label class="f">件名<input data-d="title" value="${esc(d.title)}" placeholder="${isCar() ? '例：プリウス（白パール）左リアドア へこみ' : '例：6畳洋室 クロス張替え'}" autocomplete="off"></label>
+        <label class="f" style="margin-bottom:0">作業内容・メモ<textarea data-d="memo" placeholder="${isCar() ? '例：年式、ボディ色、ぶつけた状況、交換か補修かの希望など' : '例：壁4面と天井。天井高2.4m。家具の移動あり'}">${esc(d.memo)}</textarea></label>
       </div>
       <div class="stack">
         <button class="btn pri" data-act="ai" ${settings.apiKey ? '' : 'disabled'}>AIで概算見積もりを作成</button>
@@ -522,7 +544,7 @@ function viewPrices() {
 function viewSettings() {
   return `
     <div class="card">
-      <label class="f">会社名・屋号<input data-s="company" value="${esc(settings.company)}" placeholder="例：〇〇リフォーム"></label>
+      <label class="f">会社名・屋号<input data-s="company" value="${esc(settings.company)}" placeholder="例：〇〇自動車鈑金"></label>
       <label class="f">担当者名<input data-s="staff" value="${esc(settings.staff)}"></label>
       <div class="row">
         <label class="f grow">消費税率（%）<input data-s="taxRate" value="${esc(settings.taxRate)}" inputmode="decimal"></label>
